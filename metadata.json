@@ -1,0 +1,6 @@
+{
+  "name": "UNIBRA Arena Da Nutrição - Prof. Áurea Costa",
+  "description": "Game show interativo (Arena Da Nutrição) para celular e telão de auditório, desenvolvido para a UNIBRA com a Professora Áurea Costa, suporte a ranking em tempo real e painel administrativo de perguntas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
