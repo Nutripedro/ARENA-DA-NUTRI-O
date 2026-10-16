@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Question } from '../types';
 import { setCustomAudio } from '../utils/audio';
-import { Plus, Trash2, Edit, Save, RotateCcw, Download, Upload, Shield, Volume2, Music } from 'lucide-react';
+import { saveQuestionToDb, deleteQuestionFromDb } from '../services/dbService';
+import { Plus, Trash2, Edit, Save, RotateCcw, Download, Upload, Shield, Volume2, Music, Cloud } from 'lucide-react';
 
 interface AdminPanelProps {
   questions: Question[];
@@ -45,9 +46,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
 
     if (editingId) {
+      const updatedQ = { ...formData, id: editingId } as Question;
       const updated = questionList.map(q => q.id === editingId ? ({ ...q, ...formData } as Question) : q);
       setQuestionList(updated);
       onSaveQuestions(updated);
+      saveQuestionToDb(updatedQ).catch(err => console.warn('Erro ao salvar no Firestore:', err));
       setEditingId(null);
     } else {
       const newQ: Question = {
@@ -63,6 +66,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const updated = [newQ, ...questionList];
       setQuestionList(updated);
       onSaveQuestions(updated);
+      saveQuestionToDb(newQ).catch(err => console.warn('Erro ao salvar nova questão no Firestore:', err));
     }
 
     setFormData({
@@ -86,6 +90,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const updated = questionList.filter(q => q.id !== id);
       setQuestionList(updated);
       onSaveQuestions(updated);
+      deleteQuestionFromDb(id).catch(err => console.warn('Erro ao deletar do Firestore:', err));
     }
   };
 
@@ -100,7 +105,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 2));
     const dlAnchor = document.createElement('a');
     dlAnchor.setAttribute("href", dataStr);
-    dlAnchor.setAttribute("download", `unibra_show_milhao_projeto_completo_${Date.now()}.json`);
+    dlAnchor.setAttribute("download", `arena_da_nutricao_unibra_projeto_completo_${Date.now()}.json`);
     document.body.appendChild(dlAnchor);
     dlAnchor.click();
     dlAnchor.remove();

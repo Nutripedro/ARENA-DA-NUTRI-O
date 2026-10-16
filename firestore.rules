@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default-Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidQuestion(data) {
+      return data.category is string && data.category.size() <= 100
+        && data.difficulty is number && data.difficulty >= 1 && data.difficulty <= 3
+        && data.question is string && data.question.size() > 0 && data.question.size() <= 1000
+        && data.options is list && data.options.size() == 4
+        && data.correctAnswer is number && data.correctAnswer >= 0 && data.correctAnswer <= 3
+        && (!('explanation' in data) || (data.explanation is string && data.explanation.size() <= 1000))
+        && (!('tip' in data) || (data.tip is string && data.tip.size() <= 500));
+    }
+
+    function isValidRanking(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.mode is string && data.mode.size() <= 50
+        && data.score is number && data.score >= 0
+        && data.correctCount is number && data.correctCount >= 0
+        && data.date is string && data.date.size() <= 50;
+    }
+
+    function isValidAudioConfig(data) {
+      return data.key is string && data.key.size() <= 50
+        && data.dataUrl is string && data.dataUrl.size() > 0 && data.dataUrl.size() <= 5000000;
+    }
+
+    // Coleção de Questões
+    match /questions/{questionId} {
+      allow read: if true;
+      allow create, update: if isValidId(questionId) && isValidQuestion(incoming());
+      allow delete: if isValidId(questionId);
+    }
+
+    // Coleção de Rankings
+    match /rankings/{rankingId} {
+      allow read: if true;
+      allow create: if isValidId(rankingId) && isValidRanking(incoming());
+      allow update, delete: if isValidId(rankingId);
+    }
+
+    // Configurações & Áudio
+    match /settings/{configId} {
+      allow read: if true;
+      allow create, update: if isValidId(configId) && isValidAudioConfig(incoming());
+      allow delete: if isValidId(configId);
+    }
+  }
+}

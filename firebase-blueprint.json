@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "Question": {
+      "title": "Question",
+      "description": "Perguntas acadêmicas de nutrição, bioquímica e saúde",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 100 },
+        "difficulty": { "type": "number" },
+        "question": { "type": "string", "maxLength": 1000 },
+        "options": { "type": "array" },
+        "correctAnswer": { "type": "number" },
+        "explanation": { "type": "string", "maxLength": 1000 },
+        "tip": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["category", "difficulty", "question", "options", "correctAnswer"]
+    },
+    "Ranking": {
+      "title": "Ranking",
+      "description": "Registro de pontuações e histórico de partidas",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "mode": { "type": "string", "maxLength": 50 },
+        "score": { "type": "number" },
+        "correctCount": { "type": "number" },
+        "date": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "mode", "score", "correctCount", "date"]
+    },
+    "AudioConfig": {
+      "title": "AudioConfig",
+      "description": "Configuração de áudios personalizados armazenados no banco",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "maxLength": 50 },
+        "dataUrl": { "type": "string", "maxLength": 5000000 },
+        "fileName": { "type": "string", "maxLength": 200 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["key", "dataUrl"]
+    }
+  },
+  "firestore": {
+    "/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Coleção global de questões do banco do Arena Da Nutrição"
+    },
+    "/rankings/{rankingId}": {
+      "schema": "Ranking",
+      "description": "Coleção de pontuações e rankings em tempo real dos participantes"
+    },
+    "/settings/{configId}": {
+      "schema": "AudioConfig",
+      "description": "Configurações gerais e arquivos de som personalizados"
+    }
+  }
+}

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { GameMode, GameSettings, Question, Team, GameLogEntry } from '../types';
 import { playSound, startLoopingAudio, stopLoopingAudio } from '../utils/audio';
-import { Timer, Award, CheckCircle2, XCircle, AlertCircle, HelpCircle, ArrowRight, RotateCcw, Volume2, Users, Swords } from 'lucide-react';
+import { triggerCorrectAnswerConfetti } from '../utils/confetti';
+import { Timer, Award, CheckCircle2, XCircle, AlertCircle, HelpCircle, ArrowRight, RotateCcw, Volume2, Users, Swords, Sparkles, X } from 'lucide-react';
 
 interface GameScreenProps {
   mode: GameMode;
@@ -70,6 +72,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [showTip, setShowTip] = useState(false);
   const [universityVote, setUniversityVote] = useState<number[] | null>(null);
   const [usedHelps, setUsedHelps] = useState({ eliminate: false, vote: false, tip: false, skip: false });
+
+  // Cards lifeline state
+  const [showCardsModal, setShowCardsModal] = useState(false);
+  const [selectedCardIdx, setSelectedCardIdx] = useState<number | null>(null);
+  const [eliminatedByCards, setEliminatedByCards] = useState<number[]>([]);
   
   // Result state after confirmation
   const [lastResult, setLastResult] = useState<boolean | null>(null);
@@ -180,6 +187,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
       playSound('ok');
+      triggerCorrectAnswerConfetti();
       setTeams(prev => prev.map((t, idx) => idx === playerIndex ? { ...t, score: t.score + currentPrize } : t));
     } else {
       setIncorrectCount(prev => prev + 1);
@@ -219,6 +227,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     if (isCorrect) {
       setCorrectCount(prev => prev + 1);
       playSound('ok');
+      triggerCorrectAnswerConfetti();
       if (mode === 'team') {
         setTeams(prev => prev.map((t, idx) => idx === currentTeamIndex ? { ...t, score: t.score + currentPrize } : t));
       } else {
@@ -266,6 +275,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     setShowTip(false);
     setUniversityVote(null);
     setLastResult(null);
+    setShowCardsModal(false);
+    setSelectedCardIdx(null);
+    setEliminatedByCards([]);
 
     const usedIds = gameLog.map(l => l.questionId);
     const q = selectQuestion(usedIds);
@@ -287,20 +299,44 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     });
   };
 
-  // Helps
-  const handleHelpEliminate = () => {
+  // Cartas da Professora Áurea Costa Deck
+  const CARDS_DECK = [
+    { name: 'Rei de Ouros', rank: 'K', suit: '♦', color: 'text-amber-400', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40', theme: 'from-amber-950/90 to-blue-950', quote: 'Soberania Clínica: descartar hipóteses improváveis é meio caminho para o diagnóstico!' },
+    { name: 'Ás de Espadas', rank: 'A', suit: '♠', color: 'text-blue-300', badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40', theme: 'from-blue-950/90 to-indigo-950', quote: 'Precisão Bioquímica: na fisiologia celular, cada detalhe mineral faz a diferença!' },
+    { name: 'Dama de Copas', rank: 'Q', suit: '♥', color: 'text-rose-400', badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40', theme: 'from-rose-950/90 to-blue-950', quote: 'Conduta Terapêutica: o raciocínio clínico seguro protege a saúde e o paciente!' },
+    { name: 'Valete de Paus', rank: 'J', suit: '♣', color: 'text-emerald-400', badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40', theme: 'from-emerald-950/90 to-blue-950', quote: 'Visão Integrativa: as vias metabólicas de cálcio e magnésio operam em constante sintonia!' },
+  ];
+
+  // Helps - Cartas da Prof. Áurea
+  const handleOpenCardsModal = () => {
     if (usedHelps.eliminate || isLocked || !activeQuestion) return;
-    setUsedHelps(prev => ({ ...prev, eliminate: true }));
+    setShowCardsModal(true);
+    setSelectedCardIdx(null);
+  };
+
+  const handlePickCard = (cardIdx: number) => {
+    if (selectedCardIdx !== null || !activeQuestion) return;
+    setSelectedCardIdx(cardIdx);
     playSound('help');
 
     const wrongIndices = [0, 1, 2, 3].filter(i => i !== activeQuestion.correctAnswer);
     wrongIndices.sort(() => Math.random() - 0.5);
     const toHide = wrongIndices.slice(0, 2);
+    setEliminatedByCards(toHide);
     setHiddenOptions(toHide);
+    setUsedHelps(prev => ({ ...prev, eliminate: true }));
+    setShowTip(true);
+
     if (selectedOption !== null && toHide.includes(selectedOption)) {
       setSelectedOption(null);
     }
   };
+
+  const handleCloseCardsModal = () => {
+    setShowCardsModal(false);
+  };
+
+  const handleHelpEliminate = handleOpenCardsModal;
 
   const handleHelpUniversityVote = () => {
     if (usedHelps.vote || isLocked || !activeQuestion) return;
@@ -351,6 +387,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     setHiddenOptions([]);
     setShowTip(false);
     setUniversityVote(null);
+    setShowCardsModal(false);
+    setSelectedCardIdx(null);
+    setEliminatedByCards([]);
     startTimeRef.current = Date.now();
     startLoopingAudio('suspense', 0.8);
   };
@@ -436,6 +475,19 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         <div className={`bg-gradient-to-br from-blue-900/90 via-blue-950 to-[#070e27] border-2 border-blue-500/60 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-blue-900/40 relative overflow-hidden ${isAuditorium ? 'py-12' : ''}`}>
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
+          {eliminatedByCards.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="flex justify-center mb-3"
+            >
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 text-xs font-bold shadow-md">
+                <Sparkles size={13} className="text-amber-400" />
+                <span>🃏 Cartas Ativadas: Alternativas {eliminatedByCards.map(i => ['A','B','C','D'][i]).join(' e ')} eliminadas!</span>
+              </span>
+            </motion.div>
+          )}
+
           <h2 className={`font-serif font-bold text-white text-center leading-snug drop-shadow-md mb-8 ${isAuditorium ? 'text-2xl sm:text-4xl' : 'text-xl sm:text-2xl'}`}>
             {activeQuestion.question}
           </h2>
@@ -461,7 +513,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     const isCorrectAnswer = idx === activeQuestion.correctAnswer;
 
                     let btnStyle = 'bg-blue-900/50 border-blue-500/40 text-white hover:border-amber-400';
-                    if (isHidden) btnStyle = 'opacity-0 pointer-events-none';
+                    if (isHidden) btnStyle = 'opacity-30 line-through bg-black/40 border-red-500/25 text-gray-500 pointer-events-none cursor-not-allowed';
                     else if (isChosen) btnStyle = 'bg-amber-500 text-black font-extrabold border-amber-200';
                     else if (isLocked && isCorrectAnswer) btnStyle = 'bg-emerald-600 border-emerald-400 text-white font-bold';
 
@@ -474,6 +526,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                       >
                         <span className="w-7 h-7 rounded-lg bg-black/30 flex items-center justify-center font-bold text-amber-400">{letter}</span>
                         <span className="flex-1">{optText}</span>
+                        {isHidden && (
+                          <span className="text-[9px] uppercase font-bold text-red-400 bg-red-950/80 border border-red-500/40 px-1.5 py-0.5 rounded">
+                            Eliminada
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -498,7 +555,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     const isCorrectAnswer = idx === activeQuestion.correctAnswer;
 
                     let btnStyle = 'bg-purple-900/50 border-purple-500/40 text-white hover:border-amber-400';
-                    if (isHidden) btnStyle = 'opacity-0 pointer-events-none';
+                    if (isHidden) btnStyle = 'opacity-30 line-through bg-black/40 border-red-500/25 text-gray-500 pointer-events-none cursor-not-allowed';
                     else if (isChosen) btnStyle = 'bg-amber-500 text-black font-extrabold border-amber-200';
                     else if (isLocked && isCorrectAnswer) btnStyle = 'bg-emerald-600 border-emerald-400 text-white font-bold';
 
@@ -511,6 +568,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                       >
                         <span className="w-7 h-7 rounded-lg bg-black/30 flex items-center justify-center font-bold text-amber-400">{letter}</span>
                         <span className="flex-1">{optText}</span>
+                        {isHidden && (
+                          <span className="text-[9px] uppercase font-bold text-red-400 bg-red-950/80 border border-red-500/40 px-1.5 py-0.5 rounded">
+                            Eliminada
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -529,7 +591,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                 let btnStyle = 'bg-gradient-to-r from-blue-950 to-blue-900 border-blue-500/60 text-white hover:border-amber-400 hover:shadow-lg hover:shadow-blue-500/20';
 
                 if (isHidden) {
-                  btnStyle = 'opacity-0 pointer-events-none';
+                  btnStyle = 'opacity-30 line-through bg-black/40 border-red-500/30 text-gray-400 pointer-events-none cursor-not-allowed';
                 } else if (isSelected && !isLocked) {
                   btnStyle = 'bg-gradient-to-r from-amber-500 to-amber-400 text-black border-amber-200 font-extrabold shadow-xl scale-[1.01]';
                 } else if (isLocked) {
@@ -553,6 +615,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                       {letter}
                     </div>
                     <span className="flex-1 font-medium">{optText}</span>
+                    {isHidden && (
+                      <span className="text-[10px] uppercase font-bold text-red-400 bg-red-950/80 border border-red-500/40 px-2 py-0.5 rounded ml-2">
+                        Eliminada
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -598,11 +665,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         {!isDuel && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button
-              onClick={handleHelpEliminate}
+              onClick={handleOpenCardsModal}
               disabled={usedHelps.eliminate || isLocked}
-              className="py-3 px-4 rounded-xl bg-gradient-to-r from-purple-900 to-indigo-900 border border-purple-500/40 text-purple-200 font-semibold text-sm hover:border-purple-400 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
+              className="py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-black font-extrabold text-sm hover:scale-[1.02] active:scale-[0.98] transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
+              title="Ajuda das Cartas da Professora Áurea Costa (elimina 2 incorretas e dá dica)"
             >
-              <span>✨ Eliminar 2</span>
+              <span>🃏 Cartas da Profª Áurea</span>
             </button>
 
             <button
@@ -654,18 +722,52 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               </button>
             </div>
           ) : (
-            <div className={`p-6 rounded-2xl border-2 shadow-2xl animate-fadeIn ${lastResult ? 'bg-emerald-950/80 border-emerald-500' : 'bg-red-950/80 border-red-500'}`}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 280 }}
+              className={`p-6 rounded-2xl border-2 shadow-2xl relative overflow-hidden ${
+                lastResult
+                  ? 'bg-gradient-to-br from-emerald-950/95 via-emerald-900/90 to-blue-950/90 border-emerald-400 ring-2 ring-emerald-500/20'
+                  : 'bg-gradient-to-br from-red-950/95 via-red-900/90 to-blue-950/90 border-red-500 ring-2 ring-red-500/20'
+              }`}
+            >
+              {lastResult && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.6, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ delay: 0.15, type: 'spring' }}
+                  className="absolute top-4 right-4 hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400 text-amber-300 text-xs font-bold shadow-lg"
+                >
+                  <Sparkles size={14} className="text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
+                  <span>+R$ {currentPrize.toLocaleString('pt-BR')}</span>
+                </motion.div>
+              )}
+
               <div className="flex items-start gap-4">
                 {lastResult ? (
-                  <CheckCircle2 size={36} className="text-emerald-400 flex-shrink-0" />
+                  <motion.div
+                    initial={{ rotate: -20, scale: 0.5 }}
+                    animate={{ rotate: 0, scale: 1 }}
+                    transition={{ type: 'spring', damping: 12 }}
+                  >
+                    <CheckCircle2 size={40} className="text-emerald-400 flex-shrink-0" />
+                  </motion.div>
                 ) : (
-                  <XCircle size={36} className="text-red-400 flex-shrink-0" />
+                  <motion.div
+                    initial={{ rotate: 20, scale: 0.5 }}
+                    animate={{ rotate: 0, scale: 1 }}
+                    transition={{ type: 'spring', damping: 12 }}
+                  >
+                    <XCircle size={40} className="text-red-400 flex-shrink-0" />
+                  </motion.div>
                 )}
-                <div className="flex-1">
-                  <h3 className={`text-xl font-bold font-serif mb-1 ${lastResult ? 'text-emerald-300' : 'text-red-300'}`}>
-                    {isTimedOut ? 'TEMPO ESGOTADO!' : lastResult ? 'RESPOSTA CORRETA!' : 'RESPOSTA INCORRETA!'}
+                <div className="flex-1 pr-12">
+                  <h3 className={`text-xl font-bold font-serif mb-1 flex items-center gap-2 ${lastResult ? 'text-emerald-300' : 'text-red-300'}`}>
+                    <span>{isTimedOut ? 'TEMPO ESGOTADO!' : lastResult ? 'RESPOSTA CORRETA!' : 'RESPOSTA INCORRETA!'}</span>
+                    {lastResult && <span className="text-base font-normal">🎉</span>}
                   </h3>
-                  <p className="text-sm text-blue-100 mb-3">
+                  <p className="text-sm text-blue-100 mb-3 leading-relaxed">
                     {activeQuestion.explanation}
                   </p>
                   <div className="text-xs text-blue-300/80 italic">
@@ -677,28 +779,61 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={handleNextRound}
-                  className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-black font-extrabold shadow-lg hover:scale-105 transition flex items-center gap-2"
+                  className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-black font-extrabold shadow-lg hover:scale-105 active:scale-95 transition flex items-center gap-2"
                 >
                   <span>{gameOver ? 'Ver Resultado Final' : 'Próxima Pergunta'}</span>
                   <ArrowRight size={18} />
                 </button>
               </div>
-            </div>
+            </motion.div>
           )
         ) : (
           isLocked && (
-            <div className={`p-6 rounded-2xl border-2 shadow-2xl animate-fadeIn ${lastResult ? 'bg-emerald-950/80 border-emerald-500' : 'bg-red-950/80 border-red-500'}`}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 280 }}
+              className={`p-6 rounded-2xl border-2 shadow-2xl relative overflow-hidden ${
+                lastResult
+                  ? 'bg-gradient-to-br from-emerald-950/95 via-emerald-900/90 to-purple-950/90 border-emerald-400 ring-2 ring-emerald-500/20'
+                  : 'bg-gradient-to-br from-red-950/95 via-red-900/90 to-purple-950/90 border-red-500 ring-2 ring-red-500/20'
+              }`}
+            >
+              {lastResult && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.6, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ delay: 0.15, type: 'spring' }}
+                  className="absolute top-4 right-4 hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400 text-amber-300 text-xs font-bold shadow-lg"
+                >
+                  <Sparkles size={14} className="text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
+                  <span>+R$ {currentPrize.toLocaleString('pt-BR')}</span>
+                </motion.div>
+              )}
+
               <div className="flex items-start gap-4">
                 {lastResult ? (
-                  <CheckCircle2 size={36} className="text-emerald-400 flex-shrink-0" />
+                  <motion.div
+                    initial={{ rotate: -20, scale: 0.5 }}
+                    animate={{ rotate: 0, scale: 1 }}
+                    transition={{ type: 'spring', damping: 12 }}
+                  >
+                    <CheckCircle2 size={40} className="text-emerald-400 flex-shrink-0" />
+                  </motion.div>
                 ) : (
-                  <XCircle size={36} className="text-red-400 flex-shrink-0" />
+                  <motion.div
+                    initial={{ rotate: 20, scale: 0.5 }}
+                    animate={{ rotate: 0, scale: 1 }}
+                    transition={{ type: 'spring', damping: 12 }}
+                  >
+                    <XCircle size={40} className="text-red-400 flex-shrink-0" />
+                  </motion.div>
                 )}
-                <div className="flex-1">
+                <div className="flex-1 pr-12">
                   <h3 className={`text-xl font-bold font-serif mb-1 ${lastResult ? 'text-emerald-300' : 'text-red-300'}`}>
                     {isTimedOut ? 'TEMPO ESGOTADO!' : `DUELO: ${duelWinner} ${lastResult ? 'ACERTOU PRIMEIRO!' : 'ERROU!'}`}
                   </h3>
-                  <p className="text-sm text-blue-100 mb-3">
+                  <p className="text-sm text-blue-100 mb-3 leading-relaxed">
                     {activeQuestion.explanation}
                   </p>
                   <div className="text-xs text-blue-300/80 italic">
@@ -710,13 +845,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={handleNextRound}
-                  className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-black font-extrabold shadow-lg hover:scale-105 transition flex items-center gap-2"
+                  className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-black font-extrabold shadow-lg hover:scale-105 active:scale-95 transition flex items-center gap-2"
                 >
                   <span>{gameOver ? 'Ver Resultado Final' : 'Próxima Rodada'}</span>
                   <ArrowRight size={18} />
                 </button>
               </div>
-            </div>
+            </motion.div>
           )
         )}
       </div>
@@ -751,6 +886,171 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           })}
         </div>
       )}
+
+      {/* Modal Interativo: Ajuda das Cartas da Professora Áurea Costa */}
+      <AnimatePresence>
+        {showCardsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 25 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 25 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 260 }}
+              className="w-full max-w-4xl bg-gradient-to-b from-[#0f1d5e] via-[#091442] to-[#04081c] border-2 border-amber-400/80 rounded-3xl p-6 sm:p-8 shadow-2xl relative"
+            >
+              {/* Botão Fechar */}
+              <button
+                onClick={handleCloseCardsModal}
+                className="absolute top-4 right-4 p-2 rounded-xl bg-blue-950/60 border border-blue-500/40 text-blue-200 hover:text-white hover:bg-blue-900/60 transition"
+                title="Fechar"
+              >
+                <X size={20} />
+              </button>
+
+              {/* Cabeçalho */}
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 text-xs font-bold mb-2">
+                  <Sparkles size={14} className="text-amber-400" />
+                  <span>Linha Direta com a Profª Áurea Costa</span>
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-extrabold text-amber-300 font-serif">
+                  🃏 As Cartas da Professora Áurea
+                </h3>
+                <p className="text-sm text-blue-200 mt-1 max-w-xl mx-auto">
+                  {selectedCardIdx === null
+                    ? 'Escolha uma das 4 cartas secretas para eliminar 2 alternativas incorretas e obter a dica estratégica clínica!'
+                    : 'Carta revelada! As 2 opções incorretas foram eliminadas da pergunta com sucesso.'}
+                </p>
+              </div>
+
+              {/* Grade de Cartas 3D */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 my-6">
+                {CARDS_DECK.map((card, idx) => {
+                  const isSelected = selectedCardIdx === idx;
+                  const isThisFlipped = isSelected;
+
+                  return (
+                    <motion.div
+                      key={idx}
+                      whileHover={selectedCardIdx === null ? { scale: 1.05, y: -6 } : {}}
+                      whileTap={selectedCardIdx === null ? { scale: 0.98 } : {}}
+                      onClick={() => handlePickCard(idx)}
+                      className={`cursor-pointer rounded-2xl transition-all duration-300 relative select-none ${
+                        selectedCardIdx === null
+                          ? 'hover:shadow-amber-500/40 shadow-xl'
+                          : isThisFlipped
+                          ? 'ring-4 ring-amber-400 shadow-2xl scale-105'
+                          : 'opacity-40 grayscale pointer-events-none'
+                      }`}
+                      style={{ minHeight: '230px' }}
+                    >
+                      {!isThisFlipped ? (
+                        // Verso da Carta
+                        <div className="w-full h-full min-h-[230px] rounded-2xl bg-gradient-to-br from-blue-950 via-[#0a164d] to-indigo-950 border-2 border-amber-500/60 p-4 flex flex-col items-center justify-between shadow-inner relative overflow-hidden group">
+                          <div className="w-full flex justify-between text-amber-400/50 text-xs font-mono">
+                            <span>UNIBRA</span>
+                            <span>✦</span>
+                          </div>
+
+                          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-amber-300/10 border border-amber-400/40 flex items-center justify-center text-amber-400 text-3xl font-serif font-black shadow-lg group-hover:scale-110 transition">
+                            U
+                          </div>
+
+                          <div className="text-center">
+                            <span className="text-xs font-bold text-amber-300/90 block">CARTA {idx + 1}</span>
+                            <span className="text-[10px] text-blue-300/60 uppercase tracking-widest">Toque para Virar</span>
+                          </div>
+                        </div>
+                      ) : (
+                        // Frente da Carta (Revelada)
+                        <motion.div
+                          initial={{ rotateY: 90, opacity: 0 }}
+                          animate={{ rotateY: 0, opacity: 1 }}
+                          transition={{ duration: 0.4 }}
+                          className={`w-full h-full min-h-[230px] rounded-2xl bg-gradient-to-br ${card.theme} border-2 border-amber-300 p-3.5 flex flex-col justify-between text-left shadow-2xl relative overflow-hidden`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xl font-bold font-serif ${card.color}`}>
+                              {card.rank} {card.suit}
+                            </span>
+                            <span className="text-[10px] uppercase font-bold text-amber-300 px-2 py-0.5 rounded bg-black/40">
+                              Revelada
+                            </span>
+                          </div>
+
+                          <div className="my-2 text-center">
+                            <div className="text-xs uppercase tracking-wider font-extrabold text-amber-300 mb-1">
+                              🎯 2 INCORRETAS ELIMINADAS!
+                            </div>
+                            <div className="flex items-center justify-center gap-1.5 my-1">
+                              {eliminatedByCards.map((optI) => (
+                                <span key={optI} className="w-7 h-7 rounded-lg bg-red-600/90 border border-red-300 text-white font-bold flex items-center justify-center text-xs shadow-md">
+                                  {['A','B','C','D'][optI]}
+                                </span>
+                              ))}
+                            </div>
+                            <p className="text-[11px] text-blue-200 mt-1 italic">
+                              "{card.quote}"
+                            </p>
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px] text-amber-400/70 border-t border-amber-400/20 pt-1">
+                            <span>Profª Áurea Costa</span>
+                            <span className={`font-serif ${card.color}`}>{card.rank} {card.suit}</span>
+                          </div>
+                        </motion.div>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {/* Informação & Dica Revelada */}
+              {selectedCardIdx !== null && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 rounded-2xl bg-amber-500/15 border border-amber-400/50 text-left mb-6"
+                >
+                  <div className="flex items-start gap-3">
+                    <HelpCircle size={22} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block text-amber-300 font-serif text-sm">
+                        💡 Dica Estratégica da Professora Áurea Costa:
+                      </strong>
+                      <p className="text-xs sm:text-sm text-blue-100 mt-1 leading-relaxed">
+                        {activeQuestion.tip}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Botão de Concluir */}
+              <div className="flex justify-center">
+                <button
+                  onClick={handleCloseCardsModal}
+                  className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-extrabold text-sm sm:text-base shadow-xl hover:scale-105 active:scale-95 transition flex items-center gap-2"
+                >
+                  {selectedCardIdx !== null ? (
+                    <>
+                      <span>Aplicar Eliminação e Voltar à Pergunta</span>
+                      <ArrowRight size={18} />
+                    </>
+                  ) : (
+                    <span>Fechar e Escolher Depois</span>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

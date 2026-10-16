@@ -16,7 +16,7 @@ export const HowToPlayScreen: React.FC<HowToPlayScreenProps> = ({ onGoHome }) =>
           </div>
           <div>
             <h2 className="text-2xl font-extrabold text-amber-400 font-serif">Como Jogar • Regras</h2>
-            <p className="text-xs text-blue-200">Guia completo do Show do Milhão UNIBRA — Prof. Áurea Costa</p>
+            <p className="text-xs text-blue-200">Guia completo da Arena Da Nutrição - Unibra — Prof. Áurea Costa</p>
           </div>
         </div>
 
@@ -51,8 +51,8 @@ export const HowToPlayScreen: React.FC<HowToPlayScreenProps> = ({ onGoHome }) =>
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-blue-100">
             <div className="p-4 rounded-2xl bg-blue-900/30 border border-blue-500/30">
-              <strong className="block text-amber-400 mb-1">✨ Eliminar 2</strong>
-              Remove duas alternativas incorretas, restando apenas a resposta certa e uma errada.
+              <strong className="block text-amber-400 mb-1">🃏 Cartas da Profª Áurea</strong>
+              Apresenta 4 cartas secretas. Ao virar uma carta, 2 opções incorretas são descartadas do tabuleiro e a dica clínica da questão é revelada!
             </div>
             <div className="p-4 rounded-2xl bg-blue-900/30 border border-blue-500/30">
               <strong className="block text-amber-400 mb-1">📊 Opinião da Turma</strong>

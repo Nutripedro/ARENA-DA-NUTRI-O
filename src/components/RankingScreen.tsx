@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RankingEntry } from '../types';
-import { Trophy, Award, RotateCcw, Home } from 'lucide-react';
+import { subscribeRankings } from '../services/dbService';
+import { Trophy, Award, RotateCcw, Home, Cloud } from 'lucide-react';
 
 interface RankingScreenProps {
   onGoHome: () => void;
@@ -18,6 +19,17 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({ onGoHome }) => {
     } catch (e) {
       console.error(e);
     }
+
+    // Sincronização em tempo real com o Firestore
+    const unsubscribe = subscribeRankings((cloudRankings) => {
+      if (cloudRankings && cloudRankings.length > 0) {
+        setRankings(cloudRankings);
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, []);
 
   const handleClear = () => {
@@ -38,8 +50,14 @@ export const RankingScreen: React.FC<RankingScreenProps> = ({ onGoHome }) => {
             <Trophy size={24} />
           </div>
           <div>
-            <h2 className="text-2xl font-extrabold text-amber-400 font-serif">Ranking & Histórico</h2>
-            <p className="text-xs text-blue-200">Melhores pontuações registradas na plataforma UNIBRA</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-extrabold text-amber-400 font-serif">Ranking & Histórico</h2>
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full">
+                <Cloud size={10} />
+                <span>Nuvem Firestore</span>
+              </span>
+            </div>
+            <p className="text-xs text-blue-200">Melhores pontuações sincronizadas em tempo real na UNIBRA</p>
           </div>
         </div>
 

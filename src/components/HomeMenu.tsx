@@ -253,7 +253,7 @@ export const HomeMenu: React.FC<HomeMenuProps> = ({
             className="w-full py-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-extrabold text-lg shadow-xl shadow-amber-500/30 hover:scale-[1.01] active:scale-[0.99] transition flex items-center justify-center gap-2"
           >
             <Award size={22} />
-            <span>INICIAR SHOW DO MILHÃO — UNIBRA</span>
+            <span>INICIAR ARENA DA NUTRIÇÃO — UNIBRA</span>
           </button>
         </div>
       </div>

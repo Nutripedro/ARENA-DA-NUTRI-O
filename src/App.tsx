@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { GameMode, GameSettings, Question, GameLogEntry, Team, RankingEntry } from './types';
 import { DEFAULT_QUESTIONS } from './data/questions';
 import { startLoopingAudio, stopLoopingAudio, setGlobalMute } from './utils/audio';
+import { subscribeQuestions, seedDefaultQuestionsIfEmpty, saveRankingToDb, saveQuestionToDb } from './services/dbService';
 import { Navbar } from './components/Navbar';
 import { HomeMenu } from './components/HomeMenu';
 import { GameScreen } from './components/GameScreen';
@@ -25,6 +27,19 @@ export default function App() {
     }
     return DEFAULT_QUESTIONS;
   });
+
+  // Sincronização em tempo real com o banco de dados Firestore
+  useEffect(() => {
+    seedDefaultQuestionsIfEmpty();
+    const unsubscribe = subscribeQuestions((cloudQuestions) => {
+      if (cloudQuestions && cloudQuestions.length > 0) {
+        setQuestions(cloudQuestions);
+      }
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
 
   const [gameMode, setGameMode] = useState<GameMode>('individual');
   const [gameSettings, setGameSettings] = useState<GameSettings>({
@@ -92,7 +107,7 @@ export default function App() {
       const rankingEntry: RankingEntry = {
         id: `rank-${Date.now()}`,
         name: gameMode === 'team' && result.teams ? [...result.teams].sort((a,b)=>b.score-a.score)[0]?.name || 'Equipe' : playerName,
-        mode: gameMode === 'team' ? 'Equipes' : gameMode === 'auditorium' ? 'Professor • Telão' : 'Individual',
+        mode: gameMode === 'team' ? 'Equipes' : gameMode === 'duel' ? 'Duelo (1v1)' : gameMode === 'auditorium' ? 'Professor • Telão' : 'Individual',
         score: result.score,
         correctCount: result.correctCount,
         date: new Date().toLocaleDateString('pt-BR')
@@ -101,6 +116,9 @@ export default function App() {
       const existing: RankingEntry[] = JSON.parse(localStorage.getItem('unibra_show_ranking') || '[]');
       existing.push(rankingEntry);
       localStorage.setItem('unibra_show_ranking', JSON.stringify(existing.slice(-100)));
+
+      // Sincronizar com banco de dados Firestore
+      saveRankingToDb(rankingEntry).catch((err) => console.warn('Erro ao salvar ranking no Firestore:', err));
     } catch (e) {
       console.error('Failed to save ranking:', e);
     }
@@ -115,6 +133,10 @@ export default function App() {
     } catch (e) {
       console.error(e);
     }
+    // Sincronizar questões no Firestore
+    updated.forEach((q) => {
+      saveQuestionToDb(q).catch((err) => console.warn('Erro ao salvar questão no Firestore:', err));
+    });
   };
 
   const handleResetDefaultQuestions = () => {
@@ -142,62 +164,73 @@ export default function App() {
         onOpenHowTo={() => { stopLoopingAudio('suspense'); setView('howto'); }}
       />
 
-      <main className="flex-1">
-        {view === 'home' && (
-          <HomeMenu
-            onStartGame={handleStartGame}
-            onOpenAdmin={() => { stopLoopingAudio('suspense'); setView('admin'); }}
-            onOpenRanking={() => { stopLoopingAudio('suspense'); setView('ranking'); }}
-            onOpenHowTo={() => { stopLoopingAudio('suspense'); setView('howto'); }}
-            questionCount={questions.length}
-          />
-        )}
+      <main className="flex-1 flex flex-col relative overflow-x-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={view}
+            initial={{ opacity: 0, y: 14, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -14, scale: 0.99 }}
+            transition={{ duration: 0.25, ease: [0.25, 0.8, 0.25, 1] }}
+            className="flex-1 flex flex-col w-full"
+          >
+            {view === 'home' && (
+              <HomeMenu
+                onStartGame={handleStartGame}
+                onOpenAdmin={() => { stopLoopingAudio('suspense'); setView('admin'); }}
+                onOpenRanking={() => { stopLoopingAudio('suspense'); setView('ranking'); }}
+                onOpenHowTo={() => { stopLoopingAudio('suspense'); setView('howto'); }}
+                questionCount={questions.length}
+              />
+            )}
 
-        {view === 'game' && (
-          <GameScreen
-            mode={gameMode}
-            settings={gameSettings}
-            playerName={playerName}
-            initialTeams={teamNames}
-            allQuestions={questions}
-            onFinishGame={handleFinishGame}
-            onBackToMenu={handleGoHome}
-          />
-        )}
+            {view === 'game' && (
+              <GameScreen
+                mode={gameMode}
+                settings={gameSettings}
+                playerName={playerName}
+                initialTeams={teamNames}
+                allQuestions={questions}
+                onFinishGame={handleFinishGame}
+                onBackToMenu={handleGoHome}
+              />
+            )}
 
-        {view === 'result' && (
-          <ResultScreen
-            score={gameResult.score}
-            correctCount={gameResult.correctCount}
-            incorrectCount={gameResult.incorrectCount}
-            log={gameResult.log}
-            teams={gameResult.teams}
-            allQuestions={questions}
-            onRestart={() => { if (musicOn) startLoopingAudio('suspense', 0.8); setView('game'); }}
-            onGoHome={handleGoHome}
-          />
-        )}
+            {view === 'result' && (
+              <ResultScreen
+                score={gameResult.score}
+                correctCount={gameResult.correctCount}
+                incorrectCount={gameResult.incorrectCount}
+                log={gameResult.log}
+                teams={gameResult.teams}
+                allQuestions={questions}
+                onRestart={() => { if (musicOn) startLoopingAudio('suspense', 0.8); setView('game'); }}
+                onGoHome={handleGoHome}
+              />
+            )}
 
-        {view === 'admin' && (
-          <AdminPanel
-            questions={questions}
-            onSaveQuestions={handleSaveQuestions}
-            onResetDefault={handleResetDefaultQuestions}
-            onClose={handleGoHome}
-          />
-        )}
+            {view === 'admin' && (
+              <AdminPanel
+                questions={questions}
+                onSaveQuestions={handleSaveQuestions}
+                onResetDefault={handleResetDefaultQuestions}
+                onClose={handleGoHome}
+              />
+            )}
 
-        {view === 'ranking' && (
-          <RankingScreen onGoHome={handleGoHome} />
-        )}
+            {view === 'ranking' && (
+              <RankingScreen onGoHome={handleGoHome} />
+            )}
 
-        {view === 'howto' && (
-          <HowToPlayScreen onGoHome={handleGoHome} />
-        )}
+            {view === 'howto' && (
+              <HowToPlayScreen onGoHome={handleGoHome} />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <footer className="py-4 text-center text-xs text-blue-200/60 border-t border-blue-500/20 font-sans">
-        UNIBRA • Centro Universitário • Professora Áurea Costa • Show do Milhão Acadêmico
+        UNIBRA • Centro Universitário • Professora Áurea Costa • Arena Da Nutrição
       </footer>
     </div>
   );
